@@ -2337,7 +2337,7 @@ void traffic_draw_program() {
         sorter = PACKETS;
     }
 
-    output_buffer << "Monitoring " << fastnetmon_version
+    output_buffer << "Monitoring " << "v1"
                   << " Mustafa Karavus:www.mustafakaravus.com"
                   << "\n"
                   << "IPs ordered by: " << sort_parameter << "\n";
@@ -2356,19 +2356,19 @@ void traffic_draw_program() {
         output_buffer << std::endl;
     }
 
-    output_buffer << print_channel_speed("Internal traffic", INTERNAL) << std::endl;
+    output_buffer << print_channel_speed("ic Trafik", INTERNAL) << std::endl;
 
     output_buffer << std::endl;
 
-    output_buffer << print_channel_speed("Other traffic", OTHER) << std::endl;
+    output_buffer << print_channel_speed("Diger Trafik", OTHER) << std::endl;
 
     output_buffer << std::endl;
 
     // Application statistics
-    output_buffer << "Screen updated in:\t\t" << drawing_thread_execution_time.tv_sec << " sec "
+    output_buffer << "Guncelleme:\t\t" << drawing_thread_execution_time.tv_sec << " sec "
                   << drawing_thread_execution_time.tv_usec << " microseconds\n";
 
-    output_buffer << "Traffic calculated in:\t\t" << speed_calculation_time.tv_sec << " sec "
+    output_buffer << "Trafik Hesaplama:\t\t" << speed_calculation_time.tv_sec << " sec "
                   << speed_calculation_time.tv_usec << " microseconds\n";
 
     if (speed_calculation_time.tv_sec > 0) {
