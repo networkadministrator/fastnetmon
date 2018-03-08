@@ -2338,7 +2338,7 @@ void traffic_draw_program() {
     }
 
     output_buffer << "Monitoring " << "v1"
-                  << " Netbudur :www.netbudur.com"
+                  << " Mustafa Karavus :www.mustafakaravus.com"
                   << "\n"
                   << "IPs ordered by: " << sort_parameter << "\n";
 
