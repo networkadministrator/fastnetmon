@@ -3990,7 +3990,7 @@ std::string print_subnet_load() {
         sorter = FLOWS;
     } else {
         logger << log4cpp::Priority::INFO << "Unexpected sorter type: " << sort_parameter;
-        sorter = PACKETS;
+        sorter = BYTES;
     }  
 
     std::vector<pair_of_map_for_subnet_counters_elements_t> vector_for_sort;
