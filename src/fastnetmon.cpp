@@ -2334,7 +2334,7 @@ void traffic_draw_program() {
         sorter = FLOWS;
     } else {
         logger << log4cpp::Priority::INFO << "Unexpected sorter type: " << sort_parameter;
-        sorter = PACKETS;
+        sorter = BYTES;
     }
 
     output_buffer << "Monitoring " << "v1"
