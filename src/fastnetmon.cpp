@@ -45,7 +45,10 @@
 #include "sflow_plugin/sflow_collector.h"
 #include "netflow_plugin/netflow_collector.h"
 #include "pcap_plugin/pcap_collector.h"
+
+#ifdef NETMAP_PLUGIN
 #include "netmap_plugin/netmap_collector.h"
+#endif
 
 #ifdef PF_RING
 #include "pfring_plugin/pfring_collector.h"
@@ -313,7 +316,7 @@ double average_calculation_amount_for_subnets = 30;
 bool print_average_traffic_counts = true;
 
 // Key used for sorting clients in output.  Allowed sort params: packets/bytes/flows
-std::string sort_parameter = "bytes";
+std::string sort_parameter = "packets";
 
 // Number of lines in program output
 unsigned int max_ips_in_list = 7;
@@ -1668,18 +1671,31 @@ void ipv6_traffic_processor() {
 
         while ((count = multi_process_queue_for_ipv6_counters.try_dequeue_bulk(packets_from_queue, 32)) != 0) {
             for (std::size_t i = 0; i != count; ++i) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+                __atomic_add_fetch(&total_ipv6_packets, 1, __ATOMIC_RELAXED);
+#else
                 __sync_fetch_and_add(&total_ipv6_packets, 1);
-            
+#endif
+
                 direction packet_direction = packets_from_queue[i].packet_direction;
 
                 uint64_t sampled_number_of_packets = packets_from_queue[i].number_of_packets * packets_from_queue[i].sample_ratio;
                 uint64_t sampled_number_of_bytes = packets_from_queue[i].length * packets_from_queue[i].sample_ratio;
 
+#ifdef USE_NEW_ATOMIC_BUILTINS
+                __atomic_add_fetch(&total_counters[packet_direction].packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+                __atomic_add_fetch(&total_counters[packet_direction].bytes,   sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
                 __sync_fetch_and_add(&total_counters[packet_direction].packets, sampled_number_of_packets);
                 __sync_fetch_and_add(&total_counters[packet_direction].bytes,   sampled_number_of_bytes);
+#endif
 
                 if (packet_direction != OTHER) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+                    __atomic_add_fetch(&our_ipv6_packets, 1, __ATOMIC_RELAXED);
+#else
                     __sync_fetch_and_add(&our_ipv6_packets, 1);
+#endif
                 }       
             }
         }
@@ -1702,7 +1718,14 @@ void process_packet(simple_packet& current_packet) {
         // TODO: move to bulk operations here!
         multi_process_queue_for_ipv6_counters.enqueue(current_packet);
 #else
+
+
+#ifdef USE_NEW_ATOMIC_BUILTINS
+        __atomic_add_fetch(&total_ipv6_packets, 1, __ATOMIC_RELAXED);
+#else       
         __sync_fetch_and_add(&total_ipv6_packets, 1);
+#endif
+
 #endif
 
         return;
@@ -1792,8 +1815,13 @@ void process_packet(simple_packet& current_packet) {
     uint64_t sampled_number_of_packets = current_packet.number_of_packets * current_packet.sample_ratio;
     uint64_t sampled_number_of_bytes = current_packet.length * current_packet.sample_ratio;
 
-    __sync_fetch_and_add(&total_counters[packet_direction].packets, sampled_number_of_packets);
+#ifdef USE_NEW_ATOMIC_BUILTINS
+    __atomic_add_fetch(&total_counters[packet_direction].packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&total_counters[packet_direction].bytes,   sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
+    __sync_fetch_and_add(&total_counters[packet_direction].packets, sampled_number_of_packets); 
     __sync_fetch_and_add(&total_counters[packet_direction].bytes,   sampled_number_of_bytes);
+#endif
 
     // Incerementi main and per protocol packet counters
     if (packet_direction == OUTGOING) {
@@ -1813,19 +1841,34 @@ void process_packet(simple_packet& current_packet) {
         map_element* current_element = &itr->second[shift_in_vector];
 
         // Main packet/bytes counter
+#ifdef USE_NEW_ATOMIC_BUILTINS
+        __atomic_add_fetch(&current_element->out_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+        __atomic_add_fetch(&current_element->out_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
         __sync_fetch_and_add(&current_element->out_packets, sampled_number_of_packets);
         __sync_fetch_and_add(&current_element->out_bytes, sampled_number_of_bytes);
+#endif
 
         // Fragmented IP packets
         if (current_packet.ip_fragmented) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&current_element->fragmented_out_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&current_element->fragmented_out_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&current_element->fragmented_out_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&current_element->fragmented_out_bytes, sampled_number_of_bytes);
+#endif
         }
 
         // TODO: add another counters
         if (enable_subnet_counters) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&subnet_counter->out_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&subnet_counter->out_bytes,   sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&subnet_counter->out_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&subnet_counter->out_bytes,   sampled_number_of_bytes);
+#endif
         }
 
         conntrack_main_struct* current_element_flow = NULL;
@@ -1864,12 +1907,22 @@ void process_packet(simple_packet& current_packet) {
         }
 
         if (current_packet.protocol == IPPROTO_TCP) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&current_element->tcp_out_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&current_element->tcp_out_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&current_element->tcp_out_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&current_element->tcp_out_bytes, sampled_number_of_bytes);
+#endif
 
             if (extract_bit_value(current_packet.flags, TCP_SYN_FLAG_SHIFT)) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+                __atomic_add_fetch(&current_element->tcp_syn_out_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+                __atomic_add_fetch(&current_element->tcp_syn_out_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
                 __sync_fetch_and_add(&current_element->tcp_syn_out_packets, sampled_number_of_packets);
                 __sync_fetch_and_add(&current_element->tcp_syn_out_bytes, sampled_number_of_bytes);
+#endif
             }
 
             if (enable_conection_tracking) {
@@ -1883,8 +1936,13 @@ void process_packet(simple_packet& current_packet) {
                 flow_counter.unlock();
             }
         } else if (current_packet.protocol == IPPROTO_UDP) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&current_element->udp_out_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&current_element->udp_out_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&current_element->udp_out_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&current_element->udp_out_bytes, sampled_number_of_bytes);
+#endif
 
             if (enable_conection_tracking) {
                 flow_counter.lock();
@@ -1897,8 +1955,13 @@ void process_packet(simple_packet& current_packet) {
                 flow_counter.unlock();
             }
         } else if (current_packet.protocol == IPPROTO_ICMP) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&current_element->icmp_out_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&current_element->icmp_out_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&current_element->icmp_out_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&current_element->icmp_out_bytes, sampled_number_of_bytes);
+#endif
             // no flow tracking for icmp
         } else {
         }
@@ -1920,18 +1983,33 @@ void process_packet(simple_packet& current_packet) {
         map_element* current_element = &itr->second[shift_in_vector];
 
         // Main packet/bytes counter
+#ifdef USE_NEW_ATOMIC_BUILTINS
+        __atomic_add_fetch(&current_element->in_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+        __atomic_add_fetch(&current_element->in_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
         __sync_fetch_and_add(&current_element->in_packets, sampled_number_of_packets);
         __sync_fetch_and_add(&current_element->in_bytes, sampled_number_of_bytes);
+#endif
 
         if (enable_subnet_counters) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&subnet_counter->in_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&subnet_counter->in_bytes,   sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&subnet_counter->in_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&subnet_counter->in_bytes,   sampled_number_of_bytes);
+#endif
         }
 
         // Count fragmented IP packets
         if (current_packet.ip_fragmented) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&current_element->fragmented_in_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&current_element->fragmented_in_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&current_element->fragmented_in_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&current_element->fragmented_in_bytes, sampled_number_of_bytes);
+#endif
         }
 
         conntrack_main_struct* current_element_flow = NULL;
@@ -1970,12 +2048,22 @@ void process_packet(simple_packet& current_packet) {
         }
 
         if (current_packet.protocol == IPPROTO_TCP) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&current_element->tcp_in_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&current_element->tcp_in_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&current_element->tcp_in_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&current_element->tcp_in_bytes, sampled_number_of_bytes);
+#endif
 
             if (extract_bit_value(current_packet.flags, TCP_SYN_FLAG_SHIFT)) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+                __atomic_add_fetch(&current_element->tcp_syn_in_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+                __atomic_add_fetch(&current_element->tcp_syn_in_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
                 __sync_fetch_and_add(&current_element->tcp_syn_in_packets, sampled_number_of_packets);
                 __sync_fetch_and_add(&current_element->tcp_syn_in_bytes, sampled_number_of_bytes);
+#endif
             }
 
             if (enable_conection_tracking) {
@@ -1989,8 +2077,13 @@ void process_packet(simple_packet& current_packet) {
                 flow_counter.unlock();
             }
         } else if (current_packet.protocol == IPPROTO_UDP) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&current_element->udp_in_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&current_element->udp_in_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&current_element->udp_in_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&current_element->udp_in_bytes, sampled_number_of_bytes);
+#endif
 
             if (enable_conection_tracking) {
                 flow_counter.lock();
@@ -2002,9 +2095,13 @@ void process_packet(simple_packet& current_packet) {
                 flow_counter.unlock();
             }
         } else if (current_packet.protocol == IPPROTO_ICMP) {
+#ifdef USE_NEW_ATOMIC_BUILTINS
+            __atomic_add_fetch(&current_element->icmp_in_packets, sampled_number_of_packets, __ATOMIC_RELAXED);
+            __atomic_add_fetch(&current_element->icmp_in_bytes, sampled_number_of_bytes, __ATOMIC_RELAXED);
+#else
             __sync_fetch_and_add(&current_element->icmp_in_packets, sampled_number_of_packets);
             __sync_fetch_and_add(&current_element->icmp_in_bytes, sampled_number_of_bytes);
-
+#endif
             // no flow tracking for icmp
         } else {
             // TBD
@@ -2334,41 +2431,32 @@ void traffic_draw_program() {
         sorter = FLOWS;
     } else {
         logger << log4cpp::Priority::INFO << "Unexpected sorter type: " << sort_parameter;
-        sorter = BYTES;
+        sorter = PACKETS;
     }
 
-    output_buffer << "Monitoring " << "v1"
-                  << " Codit Bilgi Teknoloji :www.codit.com.tr"
+    output_buffer << " Codit Bilgi Teknolojileri : www.codit.com.tr"
                   << "\n"
                   << "IPs ordered by: " << sort_parameter << "\n";
 
-    output_buffer << print_channel_speed("Giris Trafik", INCOMING) << std::endl;
+    output_buffer << print_channel_speed("Incoming traffic", INCOMING) << std::endl;
 
     if (process_incoming_traffic) {
         output_buffer << draw_table(INCOMING, true, sorter);
         output_buffer << std::endl;
     }
 
-    output_buffer << print_channel_speed("Cikis Trafik", OUTGOING) << std::endl;
+    output_buffer << print_channel_speed("Outgoing traffic", OUTGOING) << std::endl;
 
     if (process_outgoing_traffic) {
         output_buffer << draw_table(OUTGOING, false, sorter);
         output_buffer << std::endl;
     }
 
-    output_buffer << print_channel_speed("ic Trafik", INTERNAL) << std::endl;
-
-    output_buffer << std::endl;
-
-    output_buffer << print_channel_speed("Diger Trafik", OTHER) << std::endl;
-
-    output_buffer << std::endl;
-
     // Application statistics
-    output_buffer << "Guncelleme:\t\t" << drawing_thread_execution_time.tv_sec << " sec "
+    output_buffer << "Screen updated in:\t\t" << drawing_thread_execution_time.tv_sec << " sec "
                   << drawing_thread_execution_time.tv_usec << " microseconds\n";
 
-    output_buffer << "Trafik Hesaplama:\t\t" << speed_calculation_time.tv_sec << " sec "
+    output_buffer << "Traffic calculated in:\t\t" << speed_calculation_time.tv_sec << " sec "
                   << speed_calculation_time.tv_usec << " microseconds\n";
 
     if (speed_calculation_time.tv_sec > 0) {
@@ -2812,10 +2900,12 @@ int main(int argc, char** argv) {
     }
 #endif
 
+#ifdef NETMAP_PLUGIN
     // netmap processing
     if (enable_netmap_collection) {
         packet_capture_plugin_thread_group.add_thread(new boost::thread(start_netmap_collection, process_packet));
     }
+#endif
 
 #ifdef SNABB_SWITCH 
     if (enable_snabbswitch_collection) {
@@ -3694,24 +3784,29 @@ void produce_dpi_dump_for_pcap_dump(std::string pcap_file_path, std::stringstrea
 
         ndpi_protocol detected_protocol = dpi_parse_packet(packet_buffer, pcap_packet_header.orig_len, pcap_packet_header.incl_len, src, dst, flow, parsed_packet_as_string);
 
-        char* protocol_name = ndpi_get_proto_name(my_ndpi_struct, detected_protocol.protocol);
+#if NDPI_MAJOR >= 2
+        u_int16_t app_protocol = detected_protocol.app_protocol;
+#else
+        u_int16_t app_protocol = detected_protocol.protocol;
+#endif
+        char* protocol_name = ndpi_get_proto_name(my_ndpi_struct, app_protocol);
         char* master_protocol_name = ndpi_get_proto_name(my_ndpi_struct, detected_protocol.master_protocol); 
 
-        if (detected_protocol.protocol == NDPI_PROTOCOL_DNS) {
+        if (app_protocol == NDPI_PROTOCOL_DNS) {
             // It's answer for ANY request with so much
             if (flow->protos.dns.query_type == 255 && flow->protos.dns.num_queries < flow->protos.dns.num_answers) {
                 dns_amplification_packets++;
             }
 
-        } else if (detected_protocol.protocol == NDPI_PROTOCOL_NTP) {
+        } else if (app_protocol == NDPI_PROTOCOL_NTP) {
             // Detect packets with type MON_GETLIST_1
             if (flow->protos.ntp.version == 2 && flow->protos.ntp.request_code == 42) {
                 ntp_amplification_packets++;
             }
-        } else if (detected_protocol.protocol == NDPI_PROTOCOL_SSDP) {
+        } else if (app_protocol == NDPI_PROTOCOL_SSDP) {
             // So, this protocol completely unexpected in WAN networks
             ssdp_amplification_packets++;
-        } else if (detected_protocol.protocol == NDPI_PROTOCOL_SNMP) {
+        } else if (app_protocol == NDPI_PROTOCOL_SNMP) {
             // TODO: we need detailed tests for SNMP!
             snmp_amplification_packets++;
         }
@@ -3990,7 +4085,7 @@ std::string print_subnet_load() {
         sorter = FLOWS;
     } else {
         logger << log4cpp::Priority::INFO << "Unexpected sorter type: " << sort_parameter;
-        sorter = BYTES;
+        sorter = PACKETS;
     }  
 
     std::vector<pair_of_map_for_subnet_counters_elements_t> vector_for_sort;
