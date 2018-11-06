@@ -2434,8 +2434,8 @@ void traffic_draw_program() {
         sorter = PACKETS;
     }
 
-    output_buffer << "Netbudur"
-                  << " www.netbudur.com"
+    output_buffer << "Codit Teknoloji"
+                  << " www.codit.com.tr"
                   << "\n"
                   << "IPs ordered by: " << sort_parameter << "\n";
 
