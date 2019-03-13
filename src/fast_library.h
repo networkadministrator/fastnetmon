@@ -53,6 +53,7 @@ std::string convert_int_to_string(int value);
 std::string print_ipv6_address(struct in6_addr& ipv6_address);
 std::string print_simple_packet(simple_packet packet);
 std::string convert_timeval_to_date(struct timeval tv);
+bool convert_hex_as_string_to_uint(std::string hex, uint32_t& value);
 
 int extract_bit_value(uint8_t num, int bit);
 int extract_bit_value(uint16_t num, int bit);
@@ -68,7 +69,7 @@ uint64_t MurmurHash64A(const void* key, int len, uint64_t seed);
 std::string print_tcp_flags(uint8_t flag_value);
 int timeval_subtract(struct timeval* result, struct timeval* x, struct timeval* y);
 bool folder_exists(std::string path);
-bool is_cidr_subnet(const char* subnet);
+bool is_cidr_subnet(std::string subnet);
 bool is_v4_host(std::string host);
 bool file_exists(std::string path);
 uint32_t convert_cidr_to_binary_netmask(unsigned int cidr);

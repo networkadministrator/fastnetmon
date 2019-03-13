@@ -11,6 +11,7 @@
 #include <string>
 
 #include <pcap.h>
+#include <net/if_arp.h> // struct arphdr
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
@@ -40,6 +41,10 @@ unsigned int DATA_SHIFT_VALUE = 14;
 #define ARP_ETHERTYPE 0x0806
 /* 802.1Q VLAN tags are 4 bytes long. */
 #define VLAN_HDRLEN 4
+
+#ifndef DLT_LINUX_SLL
+#define DLT_LINUX_SLL	113
+#endif
 
 extern log4cpp::Category& logger;
 extern std::map<std::string, std::string> configuration_map;
@@ -121,13 +126,13 @@ void parse_packet(u_char* user, struct pcap_pkthdr* packethdr, const u_char* pac
     case IPPROTO_TCP:
         tcphdr = (struct tcphdr*)packetptr;
 
-#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__DragonFly__)
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__DragonFly__) || defined(__OpenBSD__)
         current_packet.source_port = ntohs(tcphdr->th_sport);
 #else
         current_packet.source_port = ntohs(tcphdr->source);
 #endif
 
-#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__DragonFly__)
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__DragonFly__) || defined(__OpenBSD__)
         current_packet.destination_port = ntohs(tcphdr->th_dport);
 #else
         current_packet.destination_port = ntohs(tcphdr->dest);
@@ -136,13 +141,13 @@ void parse_packet(u_char* user, struct pcap_pkthdr* packethdr, const u_char* pac
     case IPPROTO_UDP:
         udphdr = (struct udphdr*)packetptr;
 
-#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__DragonFly__)
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__DragonFly__) || defined(__OpenBSD__)
         current_packet.source_port = ntohs(udphdr->uh_sport);
 #else
         current_packet.source_port = ntohs(udphdr->source);
 #endif
 
-#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__DragonFly__)
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__DragonFly__) || defined(__OpenBSD__)
         current_packet.destination_port = ntohs(udphdr->uh_dport);
 #else
         current_packet.destination_port = ntohs(udphdr->dest);

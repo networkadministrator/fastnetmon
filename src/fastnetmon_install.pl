@@ -12,7 +12,7 @@ my $pf_ring_version = '6.0.3';
 my $pf_ring_url = "https://github.com/ntop/PF_RING/archive/v$pf_ring_version.tar.gz";
 my $pf_ring_sha = '9fb8080defd1a079ad5f0097e8a8adb5bc264d00';
 
-my $fastnetmon_git_path = 'https://github.com/networkadministrator/fastnetmon.git';
+my $fastnetmon_git_path = 'https://github.com/pavel-odintsov/fastnetmon.git';
 
 my $temp_folder_for_building_project = `mktemp -d /tmp/fastnetmon.build.dir.XXXXXXXXXX`;
 chomp $temp_folder_for_building_project;
@@ -182,7 +182,8 @@ sub get_user_email {
     do {
         print "\n";
         print "Please provide your business email address to receive important information about security updates\n";
-        print "In addition, we could send promotional messages to this email (very rare)\n";
+        print "In addition, we can send promotional messages to this email (very rare)\n";
+        print "You can find our privacy policy here https://fastnetmon.com/privacy-policy/\n";
         print "We will provide an option to disable any email from us\n";
         print "We will not share your email with any third party companies.\n\n";
         print "If you continue install process you accept our subscription rules automatically\n\n";
@@ -741,6 +742,11 @@ sub install_json_c {
     } else { 
         exec_command("sed -i '355 s#^#//#' json_tokener.c");
         exec_command("sed -i '360 s#^#//#' json_tokener.c");
+        
+        # Workaround complaints from fresh compilers
+        if ($distro_type eq 'ubuntu' && $distro_version eq '18.04') {
+            exec_command("sed -i -e '381 s/AM_CFLAGS =/AM_CFLAGS = -Wimplicit-fallthrough=0/ ' Makefile.in");
+        }
     }
 
     print "Build it\n";

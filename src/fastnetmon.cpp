@@ -19,6 +19,7 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <netinet/ip_icmp.h>
+#include <net/if_arp.h> // struct arphdr
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
 
@@ -1492,18 +1493,28 @@ void zeroify_all_flow_counters() {
 
 bool load_our_networks_list() {
     if (file_exists(white_list_path)) {
+        unsigned int network_entries = 0;
         std::vector<std::string> network_list_from_config = read_file_to_vector(white_list_path);
 
         for (std::vector<std::string>::iterator ii = network_list_from_config.begin();
              ii != network_list_from_config.end(); ++ii) {
-            if (ii->length() > 0 && is_cidr_subnet(ii->c_str())) {
-                make_and_lookup(whitelist_tree_ipv4, const_cast<char*>(ii->c_str()));
-            } else {
-                logger << log4cpp::Priority::ERROR << "Can't parse line from whitelist: " << *ii;
+            std::string text_subnet = *ii;
+            if (text_subnet.empty()) {
+                continue;
             }
+            if (is_v4_host(text_subnet)) {
+                logger << log4cpp::Priority::INFO << "Assuming /32 netmask for " << text_subnet;
+                text_subnet += "/32";
+            } else if (!is_cidr_subnet(text_subnet)) {
+                logger << log4cpp::Priority::ERROR << "Can't parse line from whitelist: " << text_subnet;
+                continue;
+            }
+            network_entries++;
+            make_and_lookup(whitelist_tree_ipv4, const_cast<char*> (text_subnet.c_str()));
+
         }
 
-        logger << log4cpp::Priority::INFO << "We loaded " << network_list_from_config.size()
+        logger << log4cpp::Priority::INFO << "We loaded " << network_entries
                << " networks from whitelist file";
     }
 
@@ -1599,7 +1610,7 @@ bool load_our_networks_list() {
     for (std::vector<std::string>::iterator ii = networks_list_ipv4_as_string.begin();
          ii != networks_list_ipv4_as_string.end(); ++ii) {
         
-        if (!is_cidr_subnet(ii->c_str())) {
+        if (!is_cidr_subnet(*ii)) {
             logger << log4cpp::Priority::ERROR << "Can't parse line from subnet list: '" << *ii << "'";
             continue;
         }
@@ -1632,7 +1643,7 @@ bool load_our_networks_list() {
 
     for (std::vector<std::string>::iterator ii = networks_list_ipv6_as_string.begin();
          ii != networks_list_ipv6_as_string.end(); ++ii) {
-            
+
         // TODO: add IPv6 subnet format validation
         make_and_lookup_ipv6(lookup_tree_ipv6, (char*)ii->c_str()); 
     }
@@ -2407,6 +2418,9 @@ void print_screen_contents_into_file(std::string screen_data_stats_param) {
     screen_data_file.open(cli_stats_file_path.c_str(), std::ios::trunc);
 
     if (screen_data_file.is_open()) {
+        // Set 660 permissions to file for security reasons
+        chmod(cli_stats_file_path.c_str(), S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);	    
+	    
         screen_data_file << screen_data_stats_param;
         screen_data_file.close();
     } else {
@@ -2434,19 +2448,19 @@ void traffic_draw_program() {
         sorter = PACKETS;
     }
 
-    output_buffer << "Codit Teknoloji"
-                  << " www.codit.com.tr"
+    output_buffer << "Network Monitoring"
+                  << " Codit Teknoloji www.codit.com.tr"
                   << "\n"
                   << "IPs ordered by: " << sort_parameter << "\n";
 
-    output_buffer << print_channel_speed("Incoming traffic", INCOMING) << std::endl;
+    output_buffer << print_channel_speed("Giris Trafik", INCOMING) << std::endl;
 
     if (process_incoming_traffic) {
         output_buffer << draw_table(INCOMING, true, sorter);
         output_buffer << std::endl;
     }
 
-    output_buffer << print_channel_speed("Outgoing traffic", OUTGOING) << std::endl;
+    output_buffer << print_channel_speed("Cikis Trafik", OUTGOING) << std::endl;
 
     if (process_outgoing_traffic) {
         output_buffer << draw_table(OUTGOING, false, sorter);
