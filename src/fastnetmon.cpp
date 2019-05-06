@@ -2449,7 +2449,7 @@ void traffic_draw_program() {
     }
 
     output_buffer << "Network Monitoring"
-                  << " Codit Teknoloji www.codit.com.tr"
+                  << " NW-HCTR"
                   << "\n"
                   << "IPs ordered by: " << sort_parameter << "\n";
 
