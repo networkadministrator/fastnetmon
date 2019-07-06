@@ -2448,8 +2448,8 @@ void traffic_draw_program() {
         sorter = PACKETS;
     }
 
-    output_buffer << "Network Monitoring"
-                  << " NW-HCTR"
+    output_buffer << "Codit Teknoloji"
+                  << " v1.0"
                   << "\n"
                   << "IPs ordered by: " << sort_parameter << "\n";
 
